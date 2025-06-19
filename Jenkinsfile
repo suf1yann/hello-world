@@ -16,7 +16,7 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         withSonarQubeEnv('MySonar') {
-          sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$Sonar-ID'
+          sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$Sonar-UID'
         }
       }
     }
