@@ -7,7 +7,7 @@ pipeline {
   }
 
   environment {
-    SONAR_AUTH_TOKEN = credentials('SONAR_TOKEN')
+    SONAR_PROJECT_KEY = 'hello-world'
   }
 
   stages {
@@ -26,7 +26,9 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         withSonarQubeEnv('MySonar') {
-          sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_AUTH_TOKEN'
+          withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
+            sh 'mvn sonar:sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.login=$SONAR_AUTH_TOKEN'
+          }
         }
       }
     }
@@ -34,9 +36,8 @@ pipeline {
     stage('Deploy to Tomcat') {
       steps {
         sh '''
-          sudo cp target/*.war /opt/tomcat/webapps/hello-world.war
-          sudo chown tomcat:tomcat /opt/tomcat/webapps/hello-world.war
-          sudo systemctl restart tomcat
+          cp target/hello-world.war /opt/tomcat/webapps/hello-world.war
+          chown tomcat:tomcat /opt/tomcat/webapps/hello-world.war
         '''
       }
     }
@@ -45,6 +46,10 @@ pipeline {
   post {
     always {
       archiveArtifacts artifacts: 'target/*.war', fingerprint: true
+    }
+
+    failure {
+      echo 'Build failed. Please check console output.'
     }
   }
 }
