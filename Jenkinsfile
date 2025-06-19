@@ -7,7 +7,7 @@ pipeline {
   }
 
   environment {
-    PROJECT_KEY = 'hello-world'
+    SONAR_AUTH_TOKEN = credentials('SONAR_TOKEN')
   }
 
   stages {
@@ -26,10 +26,17 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         withSonarQubeEnv('MySonar') {
-          withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
-            sh 'mvn sonar:sonar -Dsonar.projectKey=$PROJECT_KEY -Dsonar.login=$SONAR_AUTH_TOKEN'
-          }
+          sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_AUTH_TOKEN'
         }
+      }
+    }
+
+    stage('Deploy to Tomcat') {
+      steps {
+        sh '''
+          sudo cp target/hello-world.war /opt/tomcat/webapps/
+          sudo systemctl restart tomcat
+        '''
       }
     }
   }
