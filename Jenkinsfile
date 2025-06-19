@@ -34,7 +34,8 @@ pipeline {
     stage('Deploy to Tomcat') {
       steps {
         sh '''
-          sudo cp target/hello-world.war /opt/tomcat/webapps/
+          sudo cp target/*.war /opt/tomcat/webapps/hello-world.war
+          sudo chown tomcat:tomcat /opt/tomcat/webapps/hello-world.war
           sudo systemctl restart tomcat
         '''
       }
