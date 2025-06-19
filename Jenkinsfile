@@ -6,17 +6,29 @@ pipeline {
     maven 'Maven3'
   }
 
+  environment {
+    PROJECT_KEY = 'hello-world'
+  }
+
   stages {
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
+
     stage('Build') {
-      steps { sh 'mvn clean package -DskipTests' }
+      steps {
+        sh 'mvn clean package -DskipTests'
+      }
     }
+
     stage('SonarQube Analysis') {
       steps {
         withSonarQubeEnv('MySonar') {
-          sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_TOKEN'
+          withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
+            sh 'mvn sonar:sonar -Dsonar.projectKey=$PROJECT_KEY -Dsonar.login=$SONAR_AUTH_TOKEN'
+          }
         }
       }
     }
