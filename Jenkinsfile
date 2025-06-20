@@ -7,7 +7,7 @@ pipeline {
   }
 
   environment {
-    SONAR_AUTH_TOKEN = credentials('SONAR_TOKEN')
+    SONAR_PROJECT_KEY = 'hello-world'
   }
 
   stages {
@@ -19,7 +19,7 @@ pipeline {
 
     stage('Build') {
       steps {
-        sh 'mvn clean package'
+        sh 'mvn clean compile'
       }
     }
 
@@ -32,21 +32,44 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         withSonarQubeEnv('MySonar') {
-          sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_AUTH_TOKEN'
+          withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
+            sh 'mvn sonar:sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.login=$SONAR_AUTH_TOKEN'
+          }
         }
+      }
+    }
+
+    stage('Package WAR') {
+      steps {
+        sh 'mvn package -DskipTests'
       }
     }
 
     stage('Deploy to Tomcat') {
       steps {
-        sh 'cp target/*.war /opt/tomcat/webapps/'
+        sh '''
+          cp target/*.war /opt/tomcat/webapps/
+          chown tomcat:tomcat /opt/tomcat/webapps/*.war
+        '''
       }
     }
   }
 
   post {
-    always {
+    success {
       archiveArtifacts artifacts: 'target/*.war', fingerprint: true
+      slackSend (
+        channel: '#ci-cd',
+        color: 'good',
+        message: "✅ SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' succeeded.\nCheck console: ${env.BUILD_URL}"
+      )
+    }
+    failure {
+      slackSend (
+        channel: '#ci-cd',
+        color: 'danger',
+        message: "❌ FAILURE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' failed.\nCheck console: ${env.BUILD_URL}"
+      )
     }
   }
 }
