@@ -2,13 +2,12 @@ pipeline {
   agent any
 
   tools {
-    maven 'Maven3'
     jdk 'Java17'
+    maven 'Maven3'
   }
 
   environment {
-    SONAR_PROJECT_KEY = 'hello-world'
-    SONAR_HOST_URL = 'http://44.202.102.252:9000'
+    DEPLOY_PATH = '/opt/tomcat/webapps'
   }
 
   stages {
@@ -18,9 +17,9 @@ pipeline {
       }
     }
 
-    stage('Build') {
+    stage('Build & Test') {
       steps {
-        sh 'mvn clean package -DskipTests'
+        sh 'mvn clean test'
       }
     }
 
@@ -28,17 +27,23 @@ pipeline {
       steps {
         withSonarQubeEnv('MySonar') {
           withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
-            sh 'mvn sonar:sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.login=$SONAR_AUTH_TOKEN'
+            sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_AUTH_TOKEN'
           }
         }
+      }
+    }
+
+    stage('Package WAR') {
+      steps {
+        sh 'mvn package -DskipTests'
       }
     }
 
     stage('Deploy to Tomcat') {
       steps {
         sh '''
-          WAR_FILE=$(ls target/*.war | head -n 1)
-          cp "$WAR_FILE" /opt/tomcat/webapps/hello-world.war
+          cp target/*.war $DEPLOY_PATH/hello-world.war
+          echo "WAR deployed to Tomcat webapps"
         '''
       }
     }
@@ -47,6 +52,12 @@ pipeline {
   post {
     always {
       archiveArtifacts artifacts: 'target/*.war', fingerprint: true
+    }
+    success {
+      echo 'Build succeeded!'
+    }
+    failure {
+      echo 'Build failed!'
     }
   }
 }
