@@ -7,7 +7,7 @@ pipeline {
   }
 
   environment {
-    DEPLOY_PATH = '/opt/tomcat/webapps'
+    SONAR_AUTH_TOKEN = credentials('SONAR_TOKEN')
   }
 
   stages {
@@ -17,34 +17,29 @@ pipeline {
       }
     }
 
-    stage('Build & Test') {
+    stage('Build') {
       steps {
-        sh 'mvn clean test'
+        sh 'mvn clean package'
+      }
+    }
+
+    stage('Unit Test') {
+      steps {
+        sh 'mvn test'
       }
     }
 
     stage('SonarQube Analysis') {
       steps {
         withSonarQubeEnv('MySonar') {
-          withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
-            sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_AUTH_TOKEN'
-          }
+          sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_AUTH_TOKEN'
         }
-      }
-    }
-
-    stage('Package WAR') {
-      steps {
-        sh 'mvn package -DskipTests'
       }
     }
 
     stage('Deploy to Tomcat') {
       steps {
-        sh '''
-          cp target/*.war $DEPLOY_PATH/hello-world.war
-          echo "WAR deployed to Tomcat webapps"
-        '''
+        sh 'cp target/*.war /opt/tomcat/webapps/'
       }
     }
   }
@@ -52,12 +47,6 @@ pipeline {
   post {
     always {
       archiveArtifacts artifacts: 'target/*.war', fingerprint: true
-    }
-    success {
-      echo 'Build succeeded!'
-    }
-    failure {
-      echo 'Build failed!'
     }
   }
 }
