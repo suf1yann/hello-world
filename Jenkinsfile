@@ -1,17 +1,15 @@
 pipeline {
   agent any
 
-  tools {
-    jdk 'Java17'
-    maven 'Maven3'
+  environment {
+    ECR_REGISTRY = '615595685715.dkr.ecr.us-east-1.amazonaws.com'
+    IMAGE_NAME   = 'hello-world-app'
+    SONAR_HOST_URL = 'http://3.91.241.216:9000'
   }
 
-  environment {
-    AWS_DEFAULT_REGION = 'us-east-1'
-    AWS_ACCOUNT_ID     = '615595685715'                    
-    ECR_REPO           = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/hello-world-app"
-    IMAGE_TAG          = "${BUILD_NUMBER}"
-    KUBE_CONFIG        = '/var/lib/jenkins/.kube/config'
+  tools {
+    jdk   'Java17'
+    maven 'Maven3'
   }
 
   stages {
@@ -21,47 +19,49 @@ pipeline {
       }
     }
 
-    stage('Build & Test') {
-      parallel {
-        stage('Compile & Package') {
-          steps {
-            sh 'mvn clean package -DskipTests -B'
-          }
-        }
-        stage('Unit Tests') {
-          steps {
-            sh 'mvn test -B'
-          }
-        }
+    stage('Build') {
+      steps {
+        sh 'mvn clean package -DskipTests'
+      }
+    }
+
+    stage('Unit Test') {
+      steps {
+        sh 'mvn test'
       }
     }
 
     stage('SonarQube Analysis') {
       steps {
-        withSonarQubeEnv('MySonar') {
-          withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
-            sh 'mvn sonar:sonar -Dsonar.projectKey=hello-world -Dsonar.login=$SONAR_AUTH_TOKEN -B'
+        withSonarQubeEnv('MySonar') {      
+          withCredentials([ 
+            string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_AUTH_TOKEN') 
+          ]) {
+            sh """
+              mvn sonar:sonar \
+                -Dsonar.projectKey=hello-world \
+                -Dsonar.host.url=$SONAR_HOST_URL \
+                -Dsonar.login=$SONAR_AUTH_TOKEN
+            """
           }
         }
       }
     }
 
-    stage('Docker Build & Push to ECR') {
+    stage('Docker Build & Push') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'ECR_CREDENTIALS', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+        withCredentials([usernamePassword(
+          credentialsId: 'ECR_CREDENTIALS',     
+          usernameVariable: 'AWS_ACCESS_KEY_ID',
+          passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+        )]) {
           sh '''
-            # configure AWS CLI
-            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-            aws configure set default.region $AWS_DEFAULT_REGION
+            aws ecr get-login-password --region us-east-1 \
+              | docker login --username AWS --password-stdin $ECR_REGISTRY
 
-            # authenticate Docker to ECR
-            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO
-
-            # build, tag, and push
-            docker build -t hello-world-app:${IMAGE_TAG} .
-            docker tag hello-world-app:${IMAGE_TAG} $ECR_REPO:${IMAGE_TAG}
-            docker push $ECR_REPO:${IMAGE_TAG}
+            docker build -t $IMAGE_NAME:$BUILD_NUMBER .
+            docker tag $IMAGE_NAME:$BUILD_NUMBER $ECR_REGISTRY/$IMAGE_NAME:$BUILD_NUMBER
+            docker push $ECR_REGISTRY/$IMAGE_NAME:$BUILD_NUMBER
           '''
         }
       }
@@ -69,22 +69,24 @@ pipeline {
 
     stage('Deploy to Kubernetes') {
       steps {
-        sh """
-          kubectl set image \
-            deployment/hello-world-deployment \
-            hello-world-app=$ECR_REPO:${IMAGE_TAG} \
-            --record
-        """
+        script {
+          def cname = sh(
+            script: "kubectl get deploy hello-world-deployment -o jsonpath='{.spec.template.spec.containers[0].name}'",
+            returnStdout: true
+          ).trim()
+
+          sh """
+            kubectl set image deployment/hello-world-deployment \
+              ${cname}=${ECR_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} --record
+          """
+        }
       }
     }
   }
 
   post {
-    success {
-      echo "✅ Deployment succeeded! Your pods will roll out to image:$IMAGE_TAG"
-    }
-    failure {
-      echo "❌ Build or deploy failed – check the logs above!"
+    always {
+      archiveArtifacts artifacts: 'target/*.war', fingerprint: true
     }
   }
 }
