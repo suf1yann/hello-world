@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world-deployment
+  labels:
+    app: hello-world
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello-world
+  template:
+    metadata:
+      labels:
+        app: hello-world
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+      - name: hello-world
+        image: 615595685715.dkr.ecr.us-east-1.amazonaws.com/hello-world-app:latest
+        ports:
+        - containerPort: 8082
+        readinessProbe:
+          httpGet:
+            path: /hello
+            port: 8082
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /hello
+            port: 8082
+          initialDelaySeconds: 15
+          periodSeconds: 20
