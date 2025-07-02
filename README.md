@@ -1,5 +1,4 @@
 ![HW_EKS](https://github.com/user-attachments/assets/59bcba82-b3db-4251-a2be-2c071dcde96c)
-![Jenkins](https://github.com/user-attachments/assets/1e3d8d90-b0fc-4a7b-b38d-922f2c53d270)
 ![Jenkins_EKS](https://github.com/user-attachments/assets/e2ff4561-23e2-4f59-9edb-7554a22089ca)
 ![Pipeline_OV](https://github.com/user-attachments/assets/2911a4b6-7e39-4928-946f-f3f5bebccddb)
 ![SonarQube](https://github.com/user-attachments/assets/8c87dced-72b6-4d7f-8a51-9203a6e00494)
