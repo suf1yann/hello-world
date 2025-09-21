@@ -1,0 +1,13 @@
+applications:
+- name: hello-world
+  path: target/ROOT.war
+  buildpacks:
+    - java_buildpack
+  memory: 512M
+  instances: 1
+  env:
+    JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 17.+ } }'
+    JBP_CONFIG_TOMCAT: '{ tomcat: { context_path: "/" } }'
+  health-check-type: http
+  health-check-http-endpoint: /
+  timeout: 180
